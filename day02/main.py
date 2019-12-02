@@ -19,6 +19,7 @@ HERE = pathlib.Path(__file__).resolve().parent
 OPCODE_ADD = 1
 OPCODE_MULTIPLY = 2
 OPCODE_HALT = 99
+EXPECTED_OUTPUT = 19690720
 
 
 def validate_index(value, length):
@@ -89,16 +90,35 @@ def run_intcode(program):
     return running_program
 
 
+def run_parameterized_program(program, noun, verb):
+    # NOTE: This modifies `program` but probably doesn't need to.
+    program[1] = noun
+    program[2] = verb
+    program_output = run_intcode(program)
+    return program_output[0]
+
+
+def inputs_search(program, expected_output):
+    for noun in range(100):
+        for verb in range(100):
+            output = run_parameterized_program(program, noun, verb)
+            if output == expected_output:
+                return noun, verb
+
+    raise RuntimeError("No match found")
+
+
 def main():
     filename = HERE / "input.txt"
     with open(filename, "r") as file_obj:
         content = file_obj.read()
 
     program = [int(value) for value in content.split(",")]
-    program[1] = 12
-    program[2] = 2
-    program_output = run_intcode(program)
-    print(f"Program output at position 0: {program_output[0]}")
+    output1202 = run_parameterized_program(program, 12, 2)
+    print(f"Program output at position 0: {output1202}")
+
+    noun, verb = inputs_search(program, EXPECTED_OUTPUT)
+    print(f"{noun:02}{verb:02} produces {EXPECTED_OUTPUT}")
 
 
 if __name__ == "__main__":
