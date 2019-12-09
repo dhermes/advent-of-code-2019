@@ -35,8 +35,22 @@ RELATIVE_MODE = "2"
 ALL_MODES = set("012")
 
 
-def add(a, b):
-    return a + b
+def less_than_binary_op(value1, value2):
+    if value1 < value2:
+        to_store = 1
+    else:
+        to_store = 0
+
+    return to_store
+
+
+def equal_binary_op(value1, value2):
+    if value1 == value2:
+        to_store = 1
+    else:
+        to_store = 0
+
+    return to_store
 
 
 def _do_binary_op(modes, params, relative_base, program, fn):
@@ -196,94 +210,15 @@ def do_jump_if_false(modes, params, relative_base, program):
 
 
 def do_less_than(modes, params, relative_base, program):
-    mode1, mode2, mode3 = modes
-    param1, param2, param3 = params
-    if mode1 == POSITION_MODE:
-        assert 0 <= param1
-        value1 = program[param1]
-    elif mode1 == IMMEDIATE_MODE:
-        value1 = param1
-    elif mode1 == RELATIVE_MODE:
-        index = relative_base + param1
-        assert 0 <= index
-        value1 = program[index]
-    else:
-        raise ValueError("Bad mode 1", modes, params, program)
-
-    if mode2 == POSITION_MODE:
-        assert 0 <= param2
-        value2 = program[param2]
-    elif mode2 == IMMEDIATE_MODE:
-        value2 = param2
-    elif mode2 == RELATIVE_MODE:
-        index = relative_base + param2
-        assert 0 <= index
-        value2 = program[index]
-    else:
-        raise ValueError("Bad mode 2", modes, params, program)
-
-    if value1 < value2:
-        to_store = 1
-    else:
-        to_store = 0
-
-    if mode3 == POSITION_MODE:
-        assert 0 <= param3
-        program[param3] = to_store
-    elif mode3 == RELATIVE_MODE:
-        index = relative_base + param3
-        assert 0 <= index
-        program[index] = to_store
-    else:
-        raise ValueError("Bad mode 3", modes, params, program)
-
-    return -1
+    return _do_binary_op(
+        modes, params, relative_base, program, less_than_binary_op
+    )
 
 
 def do_equal(modes, params, relative_base, program):
-    # TODO: Factor into `do_less_than`
-    mode1, mode2, mode3 = modes
-    param1, param2, param3 = params
-    if mode1 == POSITION_MODE:
-        assert 0 <= param1
-        value1 = program[param1]
-    elif mode1 == IMMEDIATE_MODE:
-        value1 = param1
-    elif mode1 == RELATIVE_MODE:
-        index = relative_base + param1
-        assert 0 <= index
-        value1 = program[index]
-    else:
-        raise ValueError("Bad mode 1", modes, params, program)
-
-    if mode2 == POSITION_MODE:
-        assert 0 <= param2
-        value2 = program[param2]
-    elif mode2 == IMMEDIATE_MODE:
-        value2 = param2
-    elif mode2 == RELATIVE_MODE:
-        index = relative_base + param2
-        assert 0 <= index
-        value2 = program[index]
-    else:
-        raise ValueError("Bad mode 2", modes, params, program)
-
-    if value1 == value2:  # Only difference from `do_less_than`
-        to_store = 1
-    else:
-        to_store = 0
-
-    if mode3 == POSITION_MODE:
-        assert 0 <= param3
-        program[param3] = to_store
-    elif mode3 == RELATIVE_MODE:
-        index = relative_base + param3
-        assert 0 <= index
-        program[index] = to_store
-    else:
-        raise ValueError("Bad mode 3", modes, params, program)
-
-    return -1
+    return _do_binary_op(
+        modes, params, relative_base, program, equal_binary_op
+    )
 
 
 def do_adjust_base(modes, params, relative_base, program):
