@@ -126,29 +126,6 @@ def do_output(modes, params, relative_base, program, std_output):
     return -1
 
 
-def next_instruction(index, program):
-    assert 0 <= index
-    op_code_with_extra = program[index]
-    assert op_code_with_extra >= 0
-
-    mode_as_int, op_code = divmod(op_code_with_extra, 100)
-    instruction, num_params = OPCODES[op_code]
-    next_index = index + 1 + num_params
-    if num_params == 0:
-        assert mode_as_int == 0
-        return instruction, (), (), next_index
-
-    mode_chars = str(mode_as_int).zfill(num_params)
-    assert len(mode_chars) == num_params, (mode_chars, num_params)
-    assert set(mode_chars) <= ALL_MODES
-    modes = tuple(reversed(mode_chars))
-
-    params = tuple(program[i] for i in range(index + 1, next_index))
-    assert len(params) == num_params  # No partial slice
-
-    return instruction, modes, params, next_index
-
-
 def _do_jump_unary_predicate(modes, params, relative_base, program, fn):
     mode1, mode2 = modes
     param1, param2 = params
@@ -196,6 +173,29 @@ def do_adjust_base(modes, params, relative_base, program):
 
 def do_halt():
     return -2
+
+
+def next_instruction(index, program):
+    assert 0 <= index
+    op_code_with_extra = program[index]
+    assert op_code_with_extra >= 0
+
+    mode_as_int, op_code = divmod(op_code_with_extra, 100)
+    instruction, num_params = OPCODES[op_code]
+    next_index = index + 1 + num_params
+    if num_params == 0:
+        assert mode_as_int == 0
+        return instruction, (), (), next_index
+
+    mode_chars = str(mode_as_int).zfill(num_params)
+    assert len(mode_chars) == num_params, (mode_chars, num_params)
+    assert set(mode_chars) <= ALL_MODES
+    modes = tuple(reversed(mode_chars))
+
+    params = tuple(program[i] for i in range(index + 1, next_index))
+    assert len(params) == num_params  # No partial slice
+
+    return instruction, modes, params, next_index
 
 
 def execute_instruction(
