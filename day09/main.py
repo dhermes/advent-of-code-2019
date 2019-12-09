@@ -149,11 +149,10 @@ def next_instruction(index, program):
     return instruction, modes, params, next_index
 
 
-def do_jump_if_true(modes, params, relative_base, program):
+def _do_jump_unary_predicate(modes, params, relative_base, program, fn):
     mode1, mode2 = modes
     param1, param2 = params
 
-    # TODO: This may be incorrect interpretation.
     if mode1 == POSITION_MODE:
         assert 0 <= param1
         value1 = program[param1]
@@ -178,46 +177,22 @@ def do_jump_if_true(modes, params, relative_base, program):
     else:
         raise ValueError("Bad mode 2", modes, params, program)
 
-    if value1 != 0:
+    if fn(value1):
         return value2
 
     return -1
+
+
+def do_jump_if_true(modes, params, relative_base, program):
+    return _do_jump_unary_predicate(
+        modes, params, relative_base, program, operator.truth
+    )
 
 
 def do_jump_if_false(modes, params, relative_base, program):
-    # TODO: Fold this into `do_jump_if_true`
-    mode1, mode2 = modes
-    param1, param2 = params
-
-    # TODO: This may be incorrect interpretation.
-    if mode1 == POSITION_MODE:
-        assert 0 <= param1
-        value1 = program[param1]
-    elif mode1 == IMMEDIATE_MODE:
-        value1 = param1
-    elif mode1 == RELATIVE_MODE:
-        index = relative_base + param1
-        assert 0 <= index
-        value1 = program[index]
-    else:
-        raise ValueError("Bad mode 1", modes, params, program)
-
-    if mode2 == POSITION_MODE:
-        assert 0 <= param2
-        value2 = program[param2]
-    elif mode2 == IMMEDIATE_MODE:
-        value2 = param2
-    elif mode2 == RELATIVE_MODE:
-        index = relative_base + param2
-        assert 0 <= index
-        value2 = program[index]
-    else:
-        raise ValueError("Bad mode 2", modes, params, program)
-
-    if value1 == 0:  # Only difference from `do_jump_if_true`
-        return value2
-
-    return -1
+    return _do_jump_unary_predicate(
+        modes, params, relative_base, program, operator.not_
+    )
 
 
 def do_less_than(modes, params, relative_base, program):
