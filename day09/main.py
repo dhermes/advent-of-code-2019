@@ -70,6 +70,22 @@ def get_value(mode, param, relative_base, program):
     raise ValueError("Invalid mode", mode)
 
 
+def set_value(mode, param, to_store, relative_base, program):
+    if mode == POSITION_MODE:
+        index = param
+        assert 0 <= index
+        program[index] = to_store
+        return
+
+    if mode == RELATIVE_MODE:
+        index = relative_base + param
+        assert 0 <= index
+        program[index] = to_store
+        return
+
+    raise ValueError("Invalid mode", mode)
+
+
 def _do_binary_op(modes, params, relative_base, program, fn):
     mode1, mode2, mode3 = modes
     param1, param2, param3 = params
@@ -77,15 +93,7 @@ def _do_binary_op(modes, params, relative_base, program, fn):
     value2 = get_value(mode2, param2, relative_base, program)
 
     to_store = fn(value1, value2)
-    if mode3 == POSITION_MODE:
-        assert 0 <= param3
-        program[param3] = to_store
-    elif mode3 == RELATIVE_MODE:
-        index = relative_base + param3
-        assert 0 <= index
-        program[index] = to_store
-    else:
-        raise ValueError("Bad mode 3", modes, params, program)
+    set_value(mode3, param3, to_store, relative_base, program)
 
     return -1
 
@@ -102,15 +110,8 @@ def do_input(modes, params, relative_base, program, std_input):
     mode, = modes
     param, = params
 
-    if mode == POSITION_MODE:
-        assert 0 <= param
-        program[param] = next(std_input)
-    elif mode == RELATIVE_MODE:
-        index = relative_base + param
-        assert 0 <= index
-        program[index] = next(std_input)
-    else:
-        raise NotImplementedError("Invalid mode", mode)
+    to_store = next(std_input)
+    set_value(mode, param, to_store, relative_base, program)
 
     return -1
 
