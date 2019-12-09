@@ -35,6 +35,11 @@ RELATIVE_MODE = "2"
 ALL_MODES = set("012")
 
 
+class AdjustBase:
+    def __init__(self, value):
+        self.value = value
+
+
 def less_than_binary_op(value1, value2):
     if value1 < value2:
         to_store = 1
@@ -261,11 +266,6 @@ def run_intcode(program, std_input, std_output):
             index = jump_index
 
     return running_program
-
-
-class AdjustBase:
-    def __init__(self, value):
-        self.value = value
 
 
 def main():
