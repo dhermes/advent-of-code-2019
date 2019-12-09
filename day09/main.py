@@ -33,6 +33,8 @@ POSITION_MODE = "0"
 IMMEDIATE_MODE = "1"
 RELATIVE_MODE = "2"
 ALL_MODES = set("012")
+NO_JUMP_JUMP_INDEX = -1
+TERMINAL_JUMP_INDEX = -2
 
 
 class AdjustBase:
@@ -100,7 +102,7 @@ def _do_binary_op(modes, params, relative_base, program, fn):
     to_store = fn(value1, value2)
     set_value(mode3, param3, to_store, relative_base, program)
 
-    return -1
+    return NO_JUMP_JUMP_INDEX
 
 
 def do_add(modes, params, relative_base, program):
@@ -118,7 +120,7 @@ def do_input(modes, params, relative_base, program, std_input):
     to_store = next(std_input)
     set_value(mode, param, to_store, relative_base, program)
 
-    return -1
+    return NO_JUMP_JUMP_INDEX
 
 
 def do_output(modes, params, relative_base, program, std_output):
@@ -128,7 +130,7 @@ def do_output(modes, params, relative_base, program, std_output):
     value = get_value(mode, param, relative_base, program)
     std_output.append(value)
 
-    return -1
+    return NO_JUMP_JUMP_INDEX
 
 
 def _do_jump_unary_predicate(modes, params, relative_base, program, fn):
@@ -141,7 +143,7 @@ def _do_jump_unary_predicate(modes, params, relative_base, program, fn):
     if fn(value1):
         return value2
 
-    return -1
+    return NO_JUMP_JUMP_INDEX
 
 
 def do_jump_if_true(modes, params, relative_base, program):
@@ -177,7 +179,7 @@ def do_adjust_base(modes, params, relative_base, program):
 
 
 def do_halt():
-    return -2
+    return TERMINAL_JUMP_INDEX
 
 
 def next_instruction(index, program):
@@ -243,10 +245,9 @@ def run_intcode(program, std_input, std_output):
     relative_base = 0
     running_program = copy.deepcopy(program)
 
-    jump_index = -1
+    jump_index = NO_JUMP_JUMP_INDEX
     index = 0
-    while jump_index != -2:
-        assert jump_index >= -1
+    while jump_index != TERMINAL_JUMP_INDEX:
         instruction, modes, params, index = next_instruction(
             index, running_program
         )
@@ -261,9 +262,11 @@ def run_intcode(program, std_input, std_output):
         )
         if isinstance(jump_index, AdjustBase):
             relative_base += jump_index.value
-            jump_index = -1
+            jump_index = NO_JUMP_JUMP_INDEX
         elif jump_index >= 0:
             index = jump_index
+        elif jump_index not in (NO_JUMP_JUMP_INDEX, TERMINAL_JUMP_INDEX):
+            raise ValueError("Invalid jump index", jump_index)
 
     return running_program
 
