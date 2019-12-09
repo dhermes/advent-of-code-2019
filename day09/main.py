@@ -14,6 +14,7 @@ import collections
 import copy
 import operator
 import pathlib
+import uuid
 
 
 HERE = pathlib.Path(__file__).resolve().parent
@@ -33,8 +34,8 @@ POSITION_MODE = "0"
 IMMEDIATE_MODE = "1"
 RELATIVE_MODE = "2"
 ALL_MODES = set("012")
-NO_JUMP_JUMP_INDEX = -1
-TERMINAL_JUMP_INDEX = -2
+NO_JUMP_JUMP_INDEX = uuid.uuid4()
+TERMINAL_JUMP_INDEX = uuid.uuid4()
 
 
 class AdjustBase:
@@ -262,10 +263,12 @@ def run_intcode(program, std_input, std_output):
         )
         if isinstance(jump_index, AdjustBase):
             relative_base += jump_index.value
-            jump_index = NO_JUMP_JUMP_INDEX
+        elif jump_index in (NO_JUMP_JUMP_INDEX, TERMINAL_JUMP_INDEX):
+            # Nothing to do here, all good.
+            pass
         elif jump_index >= 0:
             index = jump_index
-        elif jump_index not in (NO_JUMP_JUMP_INDEX, TERMINAL_JUMP_INDEX):
+        else:
             raise ValueError("Invalid jump index", jump_index)
 
     return running_program
