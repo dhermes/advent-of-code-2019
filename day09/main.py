@@ -53,32 +53,28 @@ def equal_binary_op(value1, value2):
     return to_store
 
 
+def get_value(mode, param, relative_base, program):
+    if mode == POSITION_MODE:
+        index = param
+        assert 0 <= index
+        return program[index]
+
+    if mode == IMMEDIATE_MODE:
+        return param
+
+    if mode == RELATIVE_MODE:
+        index = relative_base + param
+        assert 0 <= index
+        return program[index]
+
+    raise ValueError("Invalid mode", mode)
+
+
 def _do_binary_op(modes, params, relative_base, program, fn):
     mode1, mode2, mode3 = modes
     param1, param2, param3 = params
-    if mode1 == POSITION_MODE:
-        assert 0 <= param1
-        value1 = program[param1]
-    elif mode1 == IMMEDIATE_MODE:
-        value1 = param1
-    elif mode1 == RELATIVE_MODE:
-        index = relative_base + param1
-        assert 0 <= index
-        value1 = program[index]
-    else:
-        raise ValueError("Bad mode 1", modes, params, program)
-
-    if mode2 == POSITION_MODE:
-        assert 0 <= param2
-        value2 = program[param2]
-    elif mode2 == IMMEDIATE_MODE:
-        value2 = param2
-    elif mode2 == RELATIVE_MODE:
-        index = relative_base + param2
-        assert 0 <= index
-        value2 = program[index]
-    else:
-        raise ValueError("Bad mode 2", modes, params, program)
+    value1 = get_value(mode1, param1, relative_base, program)
+    value2 = get_value(mode2, param2, relative_base, program)
 
     to_store = fn(value1, value2)
     if mode3 == POSITION_MODE:
@@ -123,18 +119,7 @@ def do_output(modes, params, relative_base, program, std_output):
     mode, = modes
     param, = params
 
-    if mode == POSITION_MODE:
-        assert 0 <= param
-        value = program[param]
-    elif mode == IMMEDIATE_MODE:
-        value = param
-    elif mode == RELATIVE_MODE:
-        index = relative_base + param
-        assert 0 <= index
-        value = program[index]
-    else:
-        raise ValueError("Bad mode", modes, params, program)
-
+    value = get_value(mode, param, relative_base, program)
     std_output.append(value)
 
     return -1
@@ -167,29 +152,8 @@ def _do_jump_unary_predicate(modes, params, relative_base, program, fn):
     mode1, mode2 = modes
     param1, param2 = params
 
-    if mode1 == POSITION_MODE:
-        assert 0 <= param1
-        value1 = program[param1]
-    elif mode1 == IMMEDIATE_MODE:
-        value1 = param1
-    elif mode1 == RELATIVE_MODE:
-        index = relative_base + param1
-        assert 0 <= index
-        value1 = program[index]
-    else:
-        raise ValueError("Bad mode 1", modes, params, program)
-
-    if mode2 == POSITION_MODE:
-        assert 0 <= param2
-        value2 = program[param2]
-    elif mode2 == IMMEDIATE_MODE:
-        value2 = param2
-    elif mode2 == RELATIVE_MODE:
-        index = relative_base + param2
-        assert 0 <= index
-        value2 = program[index]
-    else:
-        raise ValueError("Bad mode 2", modes, params, program)
+    value1 = get_value(mode1, param1, relative_base, program)
+    value2 = get_value(mode2, param2, relative_base, program)
 
     if fn(value1):
         return value2
@@ -225,19 +189,7 @@ def do_adjust_base(modes, params, relative_base, program):
     mode, = modes
     param, = params
 
-    if mode == POSITION_MODE:
-        index = param
-        assert 0 <= index
-        value = program[index]
-    elif mode == IMMEDIATE_MODE:
-        value = param
-    elif mode == RELATIVE_MODE:
-        index = relative_base + param
-        assert 0 <= index
-        value = program[index]
-    else:
-        raise NotImplementedError("Invalid mode", mode)
-
+    value = get_value(mode, param, relative_base, program)
     return AdjustBase(value)
 
 
