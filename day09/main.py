@@ -12,6 +12,7 @@
 
 import collections
 import copy
+import operator
 import pathlib
 
 
@@ -34,7 +35,11 @@ RELATIVE_MODE = "2"
 ALL_MODES = set("012")
 
 
-def do_add(modes, params, relative_base, program):
+def add(a, b):
+    return a + b
+
+
+def _do_binary_op(modes, params, relative_base, program, fn):
     mode1, mode2, mode3 = modes
     param1, param2, param3 = params
     if mode1 == POSITION_MODE:
@@ -61,58 +66,26 @@ def do_add(modes, params, relative_base, program):
     else:
         raise ValueError("Bad mode 2", modes, params, program)
 
+    to_store = fn(value1, value2)
     if mode3 == POSITION_MODE:
         assert 0 <= param3
-        program[param3] = value1 + value2
+        program[param3] = to_store
     elif mode3 == RELATIVE_MODE:
         index = relative_base + param3
         assert 0 <= index
-        program[index] = value1 + value2
+        program[index] = to_store
     else:
         raise ValueError("Bad mode 3", modes, params, program)
 
     return -1
+
+
+def do_add(modes, params, relative_base, program):
+    return _do_binary_op(modes, params, relative_base, program, operator.add)
 
 
 def do_multiply(modes, params, relative_base, program):
-    # TODO: Re-factor into `do_add()`
-    mode1, mode2, mode3 = modes
-    param1, param2, param3 = params
-    if mode1 == POSITION_MODE:
-        assert 0 <= param1
-        value1 = program[param1]
-    elif mode1 == IMMEDIATE_MODE:
-        value1 = param1
-    elif mode1 == RELATIVE_MODE:
-        index = relative_base + param1
-        assert 0 <= index
-        value1 = program[index]
-    else:
-        raise ValueError("Bad mode 1", modes, params, program)
-
-    if mode2 == POSITION_MODE:
-        assert 0 <= param2
-        value2 = program[param2]
-    elif mode2 == IMMEDIATE_MODE:
-        value2 = param2
-    elif mode2 == RELATIVE_MODE:
-        index = relative_base + param2
-        assert 0 <= index
-        value2 = program[index]
-    else:
-        raise ValueError("Bad mode 2", modes, params, program)
-
-    if mode3 == POSITION_MODE:
-        assert 0 <= param3
-        program[param3] = value1 * value2
-    elif mode3 == RELATIVE_MODE:
-        index = relative_base + param3
-        assert 0 <= index
-        program[index] = value1 * value2
-    else:
-        raise ValueError("Bad mode 3", modes, params, program)
-
-    return -1
+    return _do_binary_op(modes, params, relative_base, program, operator.mul)
 
 
 def do_input(modes, params, relative_base, program, std_input):
