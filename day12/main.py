@@ -103,11 +103,13 @@ def as_tuple(moons):
 
 def cycle_length(moons):
     seen = set()
-    seen.add(as_tuple(moons))
+    state0 = as_tuple(moons)
+    seen.add(state0)
     for step in range(2, MAX_CYCLE_LENGTH):
         perform_timestep(moons)
         seen.add(as_tuple(moons))
         if len(seen) != step:
+            assert as_tuple(moons) == state0
             return len(seen)
 
     raise RuntimeError("Did not complete", [moon.name for moon in moons])
