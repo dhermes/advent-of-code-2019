@@ -12,6 +12,7 @@
 
 import collections
 import copy
+import functools
 import json
 import operator
 import pathlib
@@ -319,6 +320,7 @@ class Intcode:
 
 class RepairDroid:
     def __init__(self):
+        self.std_input = None
         self.location = np.array([0, 0])
         self.pending = None
         self.map = {tuple(self.location): CAN_TRAVERSE}
@@ -334,10 +336,16 @@ class RepairDroid:
         return self
 
     def __next__(self):
-        self.pending = MOVEMENTS[self.direction]
-        return self.direction
+        if self.std_input is not None:
+            direction = next(self.std_input)
+        else:
+            direction = self.direction
+
+        self.pending = MOVEMENTS[direction]
+        return direction
 
     def append(self, status_code):
+        # print(f"append({status_code})")
         assert self.pending is not None
         # Handle the information about the pending move.
         new_location = self.location + self.pending
@@ -378,27 +386,27 @@ class RepairDroid:
         self.min_y = min(self.min_y, y)
         self.max_y = max(self.max_y, y)
 
-    def display(self):
+    def display(self, file=None):
         droid_at = tuple(self.location)
         width = self.max_x - self.min_x + 1
         assert width > 0
         header_footer = "+" + "-" * width + "+"
-        print(header_footer)
+        print(header_footer, file=file)
 
         for y in range(self.min_y, self.max_y + 1):
-            print("|", end="")
+            print("|", end="", file=file)
             for x in range(self.min_x, self.max_x + 1):
                 key = (x, y)
                 if key == droid_at:
-                    print(DROID, end="")
+                    print(DROID, end="", file=file)
                     continue
 
                 value = self.map.get(key, UNKNOWN)
-                print(value, end="")
+                print(value, end="", file=file)
             # Go next row.
-            print("|\n", end="")
+            print("|\n", end="", file=file)
 
-        print(header_footer)
+        print(header_footer, file=file)
 
     def to_unknown_neighbor(self):
         directions = []
@@ -441,7 +449,7 @@ class RepairDroid:
         debug(f"New direction: {self.direction}")
 
 
-def part1(droid):
+def compute_graph(droid):
     g = nx.Graph()
     for key, cell_type in droid.map.items():
         if cell_type == WALL:
@@ -455,11 +463,17 @@ def part1(droid):
 
             g.add_edge(key, neighbor_key)
 
+    return g
+
+
+def part1(g, droid):
     oxygen_system_location = tuple(droid.oxygen_system_location)
     print(nx.shortest_path_length(g, (0, 0), oxygen_system_location))
 
 
-def has_unknown_cells(droid):
+def with_unknown_cells(droid):
+    result = []
+
     for key, cell_type in droid.map.items():
         if cell_type == WALL:
             continue
@@ -468,9 +482,94 @@ def has_unknown_cells(droid):
         for delta in MOVEMENTS.values():
             neighbor_key = tuple(location + delta)
             if neighbor_key not in droid.map:
-                return True
+                result.append((key, neighbor_key))
 
-    return False
+    return result
+
+
+def directed_route(g, droid, location_known, location_unknown):
+    path = nx.shortest_path(g, tuple(droid.location), location_known)
+    path.append(location_unknown)
+    # print(path)
+
+    num_nodes = len(path)
+
+    directions = []
+    for i in range(num_nodes - 1):
+        x0, y0 = path[i]
+        x1, y1 = path[i + 1]
+        direction_vector = (x1 - x0, y1 - y0)
+        if direction_vector == (0, 1):
+            directions.append(MOVEMENT_NORTH)
+        elif direction_vector == (0, -1):
+            directions.append(MOVEMENT_SOUTH)
+        elif direction_vector == (1, 0):
+            directions.append(MOVEMENT_EAST)
+        elif direction_vector == (-1, 0):
+            directions.append(MOVEMENT_WEST)
+        else:
+            raise ValueError("Invalid direction", direction_vector)
+
+    # print(directions)
+    return directions
+
+
+def find_oxygen_system(program):
+    droid = RepairDroid()
+    intcode = Intcode(program, droid, droid)
+    while droid.oxygen_system_location is None:
+        intcode.advance_one()
+
+    assert droid.oxygen_system_location is not None
+    return intcode, droid
+
+
+def visit_all_cells(g, intcode, droid):
+    to_visit = with_unknown_cells(droid)
+    for _ in range(MAX_ITERATIONS):
+        if not to_visit:
+            break
+
+        location_known, location_unknown = to_visit[0]
+        directions = directed_route(g, droid, location_known, location_unknown)
+        # Sanity check before re-starting.
+        assert droid.pending is None
+        droid.std_input = iter(directions)
+
+        for _ in range(MAX_ITERATIONS):
+            if location_unknown in droid.map:
+                break
+
+            intcode.advance_one()
+
+        if droid.map[location_unknown] in (CAN_TRAVERSE, OXYGEN_SYSTEM):
+            g.add_edge(location_known, location_unknown)
+
+        to_visit = to_visit[1:]
+        droid.std_input = None
+        # If we run out of work, just make sure there is none left.
+        if not to_visit:
+            to_visit = with_unknown_cells(droid)
+
+    return intcode, droid
+
+
+def load_or_run_intcode(pickle_file, fn):
+    if pickle_file.exists():
+        with open(pickle_file, "rb") as file_obj:
+            intcode = pickle.load(file_obj)
+
+        assert isinstance(intcode, Intcode)
+        droid = intcode.std_input
+        assert intcode.std_output is droid
+        assert isinstance(droid, RepairDroid)
+        return intcode, droid
+
+    intcode, droid = fn()
+    with open(pickle_file, "wb") as file_obj:
+        pickle.dump(intcode, file_obj)
+
+    return intcode, droid
 
 
 def main():
@@ -485,53 +584,44 @@ def main():
     for index, value in enumerate(content.strip().split(",")):
         program[index] = int(value)
 
-    pickle_file = HERE / "intcode.pkl"
-    if pickle_file.exists():
-        with open(pickle_file, "rb") as file_obj:
-            intcode = pickle.load(file_obj)
+    pickle_file = HERE / "intcode00.pkl"
+    fn = functools.partial(find_oxygen_system, program)
+    intcode, droid = load_or_run_intcode(pickle_file, fn)
 
-        assert isinstance(intcode, Intcode)
-        droid = intcode.std_input
-        assert intcode.std_output is droid
-        assert isinstance(droid, RepairDroid)
-    else:
-        droid = RepairDroid()
-        intcode = Intcode(program, droid, droid)
-        while droid.oxygen_system_location is None:
-            intcode.advance_one()
+    g = compute_graph(droid)
+    part1(g, droid)
 
-        assert droid.oxygen_system_location is not None
-        with open(pickle_file, "wb") as file_obj:
-            pickle.dump(intcode, file_obj)
+    pickle_file = HERE / "intcode01.pkl"
+    fn = functools.partial(visit_all_cells, g, intcode, droid)
+    intcode, droid = load_or_run_intcode(pickle_file, fn)
 
-    part1(droid)
-    droid.display()
-    # Sanity check before re-starting.
-    assert droid.pending is None
+    with open(HERE / "area.txt", "w") as file_obj:
+        droid.display(file=file_obj)
 
-    for index in range(MAX_ITERATIONS):
-        if not has_unknown_cells(droid):
+    # Re-compute the graph just in case we loaded from pickle file and
+    # the graph didn't get re-computed.
+    g = compute_graph(droid)
+
+    no_oxygen = set(g.nodes())
+    just_got_oxygen = set()
+    oxygen_system_location = tuple(droid.oxygen_system_location)
+    no_oxygen.remove(oxygen_system_location)
+    just_got_oxygen.add(oxygen_system_location)
+
+    for minute in range(1, 501):
+        if not no_oxygen:
+            print(f"No work to do at minute {minute}")
             break
 
-        intcode.advance_one()
-        if index > 0 and index % 1000 == 0:
-            # debug(f"Count: {index}")
-            print(f"Count: {index}")
+        just_got_oxygen_new = set()
+        for location in just_got_oxygen:
+            for neighbor in g.neighbors(location):
+                if neighbor in no_oxygen:
+                    no_oxygen.remove(neighbor)
+                    just_got_oxygen_new.add(neighbor)
 
-    droid.display()
-    assert not has_unknown_cells(droid)
-    # global DEBUG
-    # DEBUG = True
-    # try:
-    #     run_intcode(program, droid, droid)
-    # except:
-    #     droid.display()
-    #     raise
+        just_got_oxygen = just_got_oxygen_new
 
 
 if __name__ == "__main__":
     main()
-
-# IDEA:
-# Have an **OPTIONAL** std_input and use it to set forth a **known**
-# path to the "maybe" ones via the graph (w00t networkx)!!
