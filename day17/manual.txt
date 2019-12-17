@@ -1,0 +1,10 @@
+Main: A,
+A: R,n,...  (must have 1 <= n <= 12)
+
+A: R,12,L,6
+
+
+
+FULL:
+
+R,12,L,6,R,12
