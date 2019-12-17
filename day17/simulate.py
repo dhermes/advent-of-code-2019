@@ -112,6 +112,11 @@ def main():
     print("".join(PAIRS[pair] for pair in zip(path[::2], path[1::2])))
     # ZVZWVXZVZZXVYWVXZXVYWVXZXVYZVZZXVY
     # [ZVZ][WVX][ZVZ][ZXVY][WVX][ZXVY][WVX][ZXVY][ZVZ][ZXVY]
+    A = ("R", 12, "L", 6, "R", 12)  # ZVZ
+    B = ("L", 8, "L", 6, "L", 10)  # WVX
+    C = ("R", 12, "L", 10, "L", 6, "R", 10)  # ZXVY
+    MAIN = A + B + A + C + B + C + B + C + A + C
+    assert MAIN == path
 
 
 if __name__ == "__main__":

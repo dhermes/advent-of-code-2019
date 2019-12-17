@@ -386,13 +386,14 @@ class VacuumRobot:
     def append(self, value):
         self.std_output.append(value)
 
-    def send_command(self, movement_fns):
-        num_fns = len(movement_fns)
-        partners = [","] * (num_fns - 1) + ["\n"]
-        assert len(partners) == num_fns
-        for movement_fn, partner in zip(movement_fns, partners):
-            assert movement_fn in ("A", "B", "C", "L", "R")
-            self.std_input.extend([ord(movement_fn), ord(partner)])
+    def send_command(self, ascii_str):
+        # num_fns = len(movement_fns)
+        # partners = [","] * (num_fns - 1) + ["\n"]
+        # assert len(partners) == num_fns
+        # for movement_fn, partner in zip(movement_fns, partners):
+        #     assert movement_fn in ("A", "B", "C", "L", "R")
+        #     self.std_input.extend([ord(movement_fn), ord(partner)])
+        self.std_input.extend([ord(c) for c in ascii_str])
 
 
 def find_exact(grid, value):
@@ -422,6 +423,14 @@ def part2(program, g, grid):
     program[0] = 2
 
     robot = VacuumRobot(g, grid, direction, robot_position)
+    # A = ("R", 12, "L", 6, "R", 12)  # ZVZ
+    # B = ("L", 8, "L", 6, "L", 10)  # WVX
+    # C = ("R", 12, "L", 10, "L", 6, "R", 10)  # ZXVY
+    robot.send_command("A,B,A,C,B,C,B,C,A,C\n")  # MAIN
+    robot.send_command("R,12,L,6,R,12\n")  # A
+    robot.send_command("L,8,L,6,L,10\n")  # B
+    robot.send_command("R,12,L,10,L,6,R,10\n")  # C
+    robot.send_command("n\n")  # video feed
     intcode = Intcode(program, robot, robot)
     intcode.run()
 
