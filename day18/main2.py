@@ -13,6 +13,7 @@
 import pathlib
 import pickle
 
+import colors
 import networkx as nx
 import numpy as np
 
@@ -90,7 +91,7 @@ def main():
     with open(filename, "r") as file_obj:
         content = file_obj.read()
 
-    if False:
+    if True:
         content = """\
 ########################
 #@..............ac.GI.b#
@@ -144,14 +145,49 @@ def main():
     assert len(set(keys.values())) == len(keys)
     assert len(set(doors.values())) == len(doors)
 
-    Z = collect_keys(g, grid, entrance, keys, doors)
-    with open(HERE / "a.pkl", "wb") as file_obj:
-        pickle.dump(Z, file_obj)
+    wall_indices = np.where(grid == STONE_WALL)
+    grid_disp = np.empty(grid.shape, dtype="<U24")
+    grid_disp[:, :] = grid
+    grid_disp[wall_indices] = colors.color(STONE_WALL, fg="gray")
+    visited = {}
+    while keys:
+        connected_nodes_set = nx.node_connected_component(g, entrance)
+        row_indices, col_indices = np.array(list(connected_nodes_set)).T
+        grid_show = np.empty(grid.shape, dtype="<U10")
+        grid_show.fill(" ")
+        grid_show[(row_indices, col_indices)] = grid[
+            (row_indices, col_indices)
+        ]
+        for node, c in visited.items():
+            row, col = node
+            grid_show[row, col] = c
 
-    print(set(map(len, Z)))
-    print(len(Z))
-    print(len(set(Z)))
-    # print(("a", "c", "f", "i", "d", "g", "b", "e", "h") in Z)
+        print("-" * cols)
+        print("\n".join("".join(row) for row in grid_disp))
+        print("-" * cols)
+        print("\n".join("".join(row) for row in grid_show))
+        print("-" * cols)
+
+        key = input("Key to get? ")
+        node = keys[key]
+        door = key.upper()
+        door_node = doors.get(door)
+        assert node in connected_nodes_set
+        visit_key(g, grid, key, keys, doors)
+
+        visited[node] = colors.blue(key)
+        if door_node is not None:
+            visited[door_node] = colors.red(door)
+
+    assert not doors
+
+    # Z = collect_keys(g, grid, entrance, keys, doors)
+    # # with open(HERE / "a.pkl", "wb") as file_obj:
+    # #     pickle.dump(Z, file_obj)
+    # print(set(map(len, Z)))
+    # print(len(Z))
+    # print(len(set(Z)))
+    # # print(("a", "c", "f", "i", "d", "g", "b", "e", "h") in Z)
 
 
 if __name__ == "__main__":
