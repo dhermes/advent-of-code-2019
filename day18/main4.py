@@ -258,15 +258,7 @@ def main():
         pairwise_distance.insert(key1, key2, len(path) - 1, obstacles_on_path)
 
     print("Done computing pairwise distances")
-    print(content)
-    # I = valid_choices(g, (ENTRANCE,), keys, doors, pairwise_distance)
-    # for VV in I:
-    #     print(VV)
-    # print("=======================")
-    # X = ("@", "d", "e", "f", "a", "c")
-    # I = valid_choices(g, X, keys, doors, pairwise_distance)
-    # for VV in I:
-    #     print(VV)
+    # print(content.strip())
 
     greedy_distance = greedy_route(g, keys, doors, pairwise_distance)
     print(f"greedy_distance: {greedy_distance}")
