@@ -79,18 +79,18 @@ class PairwiseDistance:
     def __init__(self):
         self.values = {}
 
-    def insert(self, a, b, value):
+    def insert(self, a, b, path_len, obstacles):
         assert a < b
         key = (a, b)
         assert key not in self.values
-        self.values[key] = value
+        self.values[key] = path_len, obstacles
 
     def get(self, a, b):
         if a > b:
-            a, b = b, a
+            path_len, obstacles = self.values[(b, a)]
+            return path_len, obstacles[::-1]
 
-        key = (a, b)
-        return self.values[key]
+        return self.values[(a, b)]
 
 
 def greedy_route(g, keys, doors, pairwise_distance):
@@ -98,33 +98,17 @@ def greedy_route(g, keys, doors, pairwise_distance):
     num_keys = len(keys) - 1
     total_distance = 0
     for _ in range(num_keys):
-        # print(f"stage: {stage}")
-        # if stage == 2:
-        #     raise RuntimeError
-        curr_key = route[-1]
-
         # Use greedy algorithm to pick the best choice.
         min_distance = INFINITY
         min_distance_key = None
-        for key in keys.keys():
-            if key in route:
-                continue
 
-            distance, obstacles = pairwise_distance.get(curr_key, key)
-            remaining_obstacles = [
-                obstacle
-                for obstacle in obstacles
-                if obstacle in DOORS and obstacle.lower() not in route
-            ]
-            if remaining_obstacles:
-                # print((curr_key, key, obstacles, remaining_obstacles))
-                continue
-
+        choices = valid_choices(g, route, keys, doors, pairwise_distance)
+        for key, distance in choices:
             if distance < min_distance:
                 min_distance = distance
                 min_distance_key = key
 
-        assert min_distance_key is not None
+        assert min_distance_key is not None, (route,)
         route.append(min_distance_key)
         # print(f"min_distance_key: {min_distance_key}")
         total_distance += min_distance
@@ -133,12 +117,81 @@ def greedy_route(g, keys, doors, pairwise_distance):
     return total_distance
 
 
+def is_impediment(obstacle, route):
+    if obstacle == ENTRANCE:
+        return False
+
+    if obstacle in KEYS:
+        return obstacle not in route
+
+    assert obstacle in DOORS
+    return obstacle.lower() not in route
+
+
+def valid_choices(g, route, keys, doors, pairwise_distance):
+    # print(f"route: {route}")
+    curr_key = route[-1]
+    for key in keys.keys():
+        if key in route:
+            continue
+
+        distance, obstacles = pairwise_distance.get(curr_key, key)
+        remaining_obstacles = [
+            obstacle
+            for obstacle in obstacles[1:-1]
+            if is_impediment(obstacle, route)
+        ]
+        # print(
+        #     f"key: {key} | obstacles: {list(obstacles[1:-1])} | "
+        #     f"remaining_obstacles: {remaining_obstacles}"
+        # )
+        if remaining_obstacles:
+            continue
+
+        yield key, distance
+
+
+def consolidate_by_visited(routes):
+    by_visited = {}
+    for route, distance in routes:
+        last_one = route[-1]
+        visited = tuple(sorted(route[:-1]))
+        key = (last_one, visited)
+
+        if key not in by_visited:
+            by_visited[key] = route, distance
+
+        _, compare_distance = by_visited[key]
+        if distance < compare_distance:
+            by_visited[key] = route, distance
+
+    return list(by_visited.values())
+
+
 def main():
     filename = HERE / "input.txt"
     with open(filename, "r") as file_obj:
         content = file_obj.read()
 
-    if True:
+    if False:
+        content = """\
+########################
+#...............b.C.D.f#
+#.######################
+#.....@.a.B.c.d.A.e.F.g#
+########################"""
+    if False:
+        content = """\
+#################
+#i.G..c...e..H.p#
+########.########
+#j.A..b...f..D.o#
+########@########
+#k.E..a...g..B.n#
+########.########
+#l.F..d...h..C.m#
+#################"""
+    if False:
         content = """\
 ########################
 #@..............ac.GI.b#
@@ -186,6 +239,7 @@ def main():
 
     assert nx.is_connected(g)
     keys[ENTRANCE] = entrance
+    print("Done creating graph")
 
     all_keys = sorted(keys.keys())
     node_to_obstacle = {node: key for key, node in keys.items()}
@@ -201,16 +255,60 @@ def main():
         )
         assert obstacles_on_path[0] == key1
         assert obstacles_on_path[-1] == key2
-        pairwise_distance.insert(
-            key1, key2, (len(path) - 1, obstacles_on_path)
-        )
+        pairwise_distance.insert(key1, key2, len(path) - 1, obstacles_on_path)
+
+    print("Done computing pairwise distances")
+    print(content)
+    # I = valid_choices(g, (ENTRANCE,), keys, doors, pairwise_distance)
+    # for VV in I:
+    #     print(VV)
+    # print("=======================")
+    # X = ("@", "d", "e", "f", "a", "c")
+    # I = valid_choices(g, X, keys, doors, pairwise_distance)
+    # for VV in I:
+    #     print(VV)
 
     greedy_distance = greedy_route(g, keys, doors, pairwise_distance)
-    print(greedy_distance)
-    # partial_routes = [(ENTRANCE,)]
-    # num_keys = len(keys) - 1
-    # for stage in range(num_keys):
-    #     pass
+    print(f"greedy_distance: {greedy_distance}")
+
+    route_start = (ENTRANCE,)
+    distance_start = 0
+    partial_routes = [(route_start, distance_start)]
+    num_keys = len(keys) - 1
+    for stage in range(num_keys):
+        partial_routes_new = []
+        for route, partial_distance in partial_routes:
+            choices = valid_choices(g, route, keys, doors, pairwise_distance)
+            for key, distance in choices:
+                new_distance = partial_distance + distance
+                if new_distance > greedy_distance:
+                    # msg = (
+                    #     f"Got rid of route at stage {stage} for "
+                    #     f"{new_distance} exceeding greedy distance "
+                    #     f"{greedy_distance}"
+                    # )
+                    # print(msg)
+                    continue
+
+                new_route = route + (key,)
+                partial_routes_new.append((new_route, new_distance))
+
+        # Consolidate for any paths that have led to the same point.
+        partial_routes_new = consolidate_by_visited(partial_routes_new)
+        # Update for next iteration.
+        partial_routes = partial_routes_new
+        # print(f"{stage}: {partial_routes}")
+        print(f"{stage}: {len(partial_routes)}")
+
+    min_distance = INFINITY
+    min_distance_route = None
+    for route, distance in partial_routes:
+        if distance < min_distance:
+            min_distance = distance
+            min_distance_route = route
+
+    print(f"min_distance: {min_distance}")
+    print(f"min_distance_route: {min_distance_route}")
 
 
 if __name__ == "__main__":
