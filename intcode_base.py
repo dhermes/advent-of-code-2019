@@ -293,17 +293,6 @@ class Intcode:
             self.advance_one()
 
 
-def in_tractor_beam(program, row, col):
-    std_input_list = [row, col]
-    std_input = iter(std_input_list)
-    std_output = []
-    intcode = Intcode(program, std_input, std_output)
-    intcode.run()
-
-    predicate, = std_output
-    return predicate
-
-
 def main():
     filename = HERE / "input.txt"
     with open(filename, "r") as file_obj:
@@ -313,18 +302,7 @@ def main():
     for index, value in enumerate(content.strip().split(",")):
         program[index] = int(value)
 
-    grid = np.zeros((50, 50), dtype=int)
-    for row in range(50):
-        for col in range(50):
-            grid[row, col] = in_tractor_beam(program, row, col)
-
-    print(grid)
-    print(np.sum(grid))
-    print(np.count_nonzero(grid))
-
-    display = {0: " ", 1: "#"}
-    img = "\n".join("".join(display[value] for value in row) for row in grid)
-    print(img)
+    print(program)
 
 
 if __name__ == "__main__":
