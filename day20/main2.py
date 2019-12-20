@@ -50,11 +50,19 @@ def locate_graph(node, graphs):
     return match
 
 
-def can_reach_exit(jump, gg_id, exit_graph):
-    if jump % 2 != 0:
+def can_reach_exit(level, gg_id, exit_graph):
+    if level != 0:
         return False
 
     return gg_id == exit_graph
+
+
+def is_outside(node, rows, cols):
+    row, col = node
+    if row in (0, 1, rows - 2, rows - 1):
+        return True
+
+    return col in (0, 1, cols - 2, cols - 1)
 
 
 def main():
@@ -62,7 +70,7 @@ def main():
     with open(filename, "r") as file_obj:
         content = file_obj.read()
 
-    if True:
+    if False:
         content = """\
          A        |
          A        |
@@ -193,6 +201,10 @@ RE....#.#                           #......RF
                 if neighbor_cell == ".":
                     g.add_edge(curr_key, neighbor_key)
 
+    graphs = {
+        i: gg for i, gg in enumerate(nx.connected_component_subgraphs(g))
+    }
+
     portals = collections.defaultdict(list)
     while second_pass:
         assert len(second_pass) % 2 == 0
@@ -223,15 +235,26 @@ RE....#.#                           #......RF
 
                 nearby_traversible.append(neighbor_key)
 
-        assert len(nearby_traversible) == 1, nearby_traversible
-        portals[pair].append(nearby_traversible[0])
+        nearby_node, = nearby_traversible
+        nodes_outside = [is_outside(node, rows, cols) for node in nodes]
+        if all(nodes_outside):
+            # Outside portals go "down" a level
+            level_delta = -1
+        else:
+            # Inside portals go "up" a level
+            level_delta = 1
+            assert nodes_outside == [False, False], (
+                matches,
+                rows,
+                cols,
+                nodes,
+            )
 
-    entrance, = portals.pop("AA")
-    exit_, = portals.pop("ZZ")
+        portals[pair].append((nearby_node, level_delta))
 
-    graphs = {
-        i: gg for i, gg in enumerate(nx.connected_component_subgraphs(g))
-    }
+    (entrance, _), = portals.pop("AA")
+    (exit_, _), = portals.pop("ZZ")
+
     entrance_graph = locate_graph(entrance, graphs)
     print(f"entrance: {entrance}")
     print(f"entrance_graph: {entrance_graph}")
@@ -240,17 +263,17 @@ RE....#.#                           #......RF
     print(f"exit_graph: {exit_graph}")
 
     jump_points_by_graph = collections.defaultdict(set)
-    jump_points_by_graph[entrance_graph].add(entrance)
-    jump_points_by_graph[exit_graph].add(exit_)
+    jump_points_by_graph[entrance_graph].add((entrance, None))
+    jump_points_by_graph[exit_graph].add((exit_, None))
     graph_portals = collections.defaultdict(dict)
     for portal_nodes in portals.values():
-        node1, node2 = portal_nodes
+        (node1, level_delta1), (node2, level_delta2) = portal_nodes
         node1_graph = locate_graph(node1, graphs)
         node2_graph = locate_graph(node2, graphs)
         assert node1_graph != node2_graph
 
-        jump_points_by_graph[node1_graph].add(node1)
-        jump_points_by_graph[node2_graph].add(node2)
+        jump_points_by_graph[node1_graph].add((node1, level_delta1))
+        jump_points_by_graph[node2_graph].add((node2, level_delta2))
 
         jump_to = graph_portals[node1_graph]
         assert node1 not in jump_to
@@ -260,7 +283,8 @@ RE....#.#                           #......RF
         jump_to[node2] = node1_graph, node1
 
     within_graph_moves = {}
-    for gg_id, nodes in jump_points_by_graph.items():
+    for gg_id, nodes_with_delta in jump_points_by_graph.items():
+        nodes = [node for node, _ in nodes_with_delta]
         assert len(nodes) >= 2
         gg = graphs[gg_id]
         for node1, node2 in itertools.combinations(nodes, 2):
@@ -276,42 +300,53 @@ RE....#.#                           #......RF
             else:
                 within_graph_moves[key2] = distance
 
-    # graph_id, node, distance
+    # graph_id, node, level, distance
     shortest_distance = INFINITY
-    locations = [(entrance_graph, entrance, 0)]
-    for jump in range(10000):
-        print(f"jump: {jump} -> {len(locations)}")
-        # NOTE: Can only finish when jump is even
+    locations = [(entrance_graph, entrance, 0, 0)]
+    for index in range(10000):
+        print(f"{index} -> {len(locations)}")
         new_locations = []
 
         for location in locations:
-            gg_id, node, distance = location
+            gg_id, node, level, distance = location
             gg = graphs[gg_id]
             # 0. If ``jump`` is even, try to exit
-            if can_reach_exit(jump, gg_id, exit_graph):
+            if can_reach_exit(level, gg_id, exit_graph):
                 pair = node, exit_
                 assert node in gg  # Sanity
                 assert exit_ in gg  # Sanity
                 jump_distance = within_graph_moves[pair]
                 new_distance = distance + jump_distance
                 if new_distance < shortest_distance:
+                    msg = (
+                        f"shortest_distance: {new_distance} (replacing "
+                        f"{shortest_distance})"
+                    )
+                    print(msg)
                     shortest_distance = new_distance
-                    print(f"shortest_distance: {shortest_distance}")
+
+                continue
 
             # 1. Find all **other** jump points in ``gg`` via ``jump_points_by_graph``
-            for other_node in jump_points_by_graph[gg_id]:
+            for other_node, level_delta in jump_points_by_graph[gg_id]:
                 if other_node in (node, entrance, exit_):
                     continue
                 # 2. Use ``within_graph_moves`` to get distances to those points
                 pair = node, other_node
                 jump_distance = within_graph_moves[pair]
                 new_distance = distance + jump_distance
+                new_level = level + level_delta
+                if level < 0:
+                    # This step is invalid because we cannot go negative.
+                    continue
                 # 3. Use ``graph_portals`` to actually jump (add 1 step)
                 new_gg_id, new_node = graph_portals[gg_id][other_node]
                 new_distance += 1
                 # 4. Give up when distance exceeds established minimum
                 if new_distance < shortest_distance:
-                    new_locations.append((new_gg_id, new_node, new_distance))
+                    new_locations.append(
+                        (new_gg_id, new_node, new_level, new_distance)
+                    )
                 else:
                     print(f"Rejected {new_distance}")
 
