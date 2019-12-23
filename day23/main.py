@@ -296,9 +296,12 @@ class Intcode:
 
 
 class NIC:
-    def __init__(self, address, by_address):
+    def __init__(self, address, by_address, nat):
         self.address = address
         self.by_address = by_address
+        self.nat = nat
+        self.spinlock = False
+
         self.std_input = [address, -1]
         self.std_output = []
         self.index = 0
@@ -312,8 +315,10 @@ class NIC:
 
         # NOTE: This spinlock is suboptimal, but it could be worse.
         while curr_index >= len(self.std_input):
+            self.spinlock = True
             time.sleep(1e-3)
 
+        self.spinlock = False
         return self.std_input[curr_index]
 
     def append(self, value):
@@ -322,8 +327,57 @@ class NIC:
             return
 
         destination, x_val, y_val = self.std_output[-3:]
+        if destination == 255:
+            self.nat.send_two(self.address, x_val, y_val)
+            return
+
         destination_nic = self.by_address[destination]
         destination_nic.std_input.extend([x_val, y_val])
+
+
+class NAT:
+    def __init__(self, by_address):
+        self.by_address = by_address
+        self.lock = threading.Lock()
+        self.x_val = None
+        self.y_val = None
+        self.sent_y = []
+
+    def send_two(self, from_nic, x_val, y_val):
+        # NOTE: ``from_nic`` is (for now) ignored.
+        with self.lock:
+            self.x_val = x_val
+            self.y_val = y_val
+
+    def monitor(self):
+        # Intended to run in a thread.
+        consecutive_spinlocks = 0
+        while True:
+            # NOTE: This is subject to race conditions, lack of locks in this
+            #       code is wild west.
+            if all(nic.spinlock for nic in self.by_address.values()):
+                consecutive_spinlocks += 1
+            else:
+                consecutive_spinlocks = 0
+
+            if consecutive_spinlocks >= 100:
+                consecutive_spinlocks = 0
+                # Don't change x and y during this
+                with self.lock:
+                    if self.x_val is None or self.y_val is None:
+                        raise RuntimeError("Have not received anything")
+                    destination_nic = self.by_address[0]
+                    if self.y_val in self.sent_y:
+                        raise RuntimeError(
+                            f"Sending y = {self.y_val} again", self.sent_y
+                        )
+                    else:
+                        self.sent_y.append(self.y_val)
+
+                    destination_nic.std_input.extend([self.x_val, self.y_val])
+
+            # Sleep before next (infinite) loop iteration
+            time.sleep(1e-3)
 
 
 def run_intcode(intcode):
@@ -357,14 +411,19 @@ def main():
     # it will request its network address via a single input instruction. Be
     # sure to give each computer a unique network address.
     by_address = {}
+    nat = NAT(by_address)
     threads = []
     for address in range(50):
-        nic = NIC(address, by_address)
+        nic = NIC(address, by_address, nat)
         by_address[address] = nic
 
         intcode = Intcode(program, nic, nic)
         thread = threading.Thread(target=run_intcode, args=(intcode,))
         threads.append(thread)
+
+    # Add a thread for the NAT monitor
+    thread = threading.Thread(target=nat.monitor)
+    threads.append(thread)
 
     for thread in threads:
         thread.start()
