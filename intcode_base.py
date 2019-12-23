@@ -293,6 +293,24 @@ class Intcode:
             self.advance_one()
 
 
+class Foo:
+    def __init__(self):
+        self.std_input = []
+        self.std_output = []
+        self.index = 0
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        curr_index = self.index
+        self.index = curr_index + 1
+        return self.std_input[curr_index]
+
+    def append(self, value):
+        self.std_output.append(value)
+
+
 def main():
     filename = HERE / "input.txt"
     with open(filename, "r") as file_obj:
@@ -302,7 +320,10 @@ def main():
     for index, value in enumerate(content.strip().split(",")):
         program[index] = int(value)
 
-    print(program)
+    foo = Foo()
+    intcode = Intcode(program, foo, foo)
+    intcode.run()
+    print(foo.std_output)
 
 
 if __name__ == "__main__":
