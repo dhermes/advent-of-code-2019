@@ -294,15 +294,16 @@ class Intcode:
             self.advance_one()
 
 
+class CatchIndexError(IndexError):
+    pass
+
+
 class Droid:
-    def __init__(self, commands):
+    def __init__(self):
         self.std_input = []
         self.std_output = []
         self.index = 0
-        self.commands = commands
         self.index_out = 0
-        # self.x = 0
-        # self.y = 0
 
     def __iter__(self):
         return self
@@ -311,8 +312,7 @@ class Droid:
         curr_index = self.index
         self.index = curr_index + 1
         if curr_index >= len(self.std_input):
-            get_command_from_user(self)
-        assert curr_index < len(self.std_input), (curr_index, self.std_input)
+            raise CatchIndexError("list index out of range")
 
         return self.std_input[curr_index]
 
@@ -320,22 +320,12 @@ class Droid:
         new_index = len(self.std_output)
         to_read = self.std_output[self.index_out : new_index]
         self.index_out = new_index
-        # print(f"position={self.x}, {self.y}")
-        # print("=" * 40)
         print(bytes(to_read).decode("ascii"), end="")
 
     def append(self, value):
         self.std_output.append(value)
 
     def send_command(self, ascii_str):
-        # if ascii_str == "north\n":
-        #     self.y -= 1
-        # elif ascii_str == "south\n":
-        #     self.y += 1
-        # elif ascii_str == "east\n":
-        #     self.x += 1
-        # elif ascii_str == "west\n":
-        #     self.x -= 1
         self.std_input.extend([ord(c) for c in ascii_str])
 
 
@@ -429,112 +419,33 @@ def main():
     for index, value in enumerate(content.strip().split(",")):
         program[index] = int(value)
 
-    # filename = HERE / "commands.json"
-    # with open(filename, "r") as file_obj:
-    #     commands = json.load(file_obj)
+    with open(HERE / "all_possible.json", "r") as file_obj:
+        all_possible = json.load(file_obj)
 
-    # Some items should not be taken:
-    # -----------------------------------
-    # d. You take the photons.
-    #    It is suddenly completely dark! You are eaten by a Grue!
-    # e. You take the escape pod.
-    #    You're launched into space! Bye!
-    # h. You take the molten lava.
-    #    The molten lava is way too hot! You melt!
-    # n. The giant electromagnet is stuck to you.  You can't move!!
-    # o. (Literally gets caught in an infinite loop)
-    items = {
-        # BAD
-        "d": "photons",
-        "e": "escape pod",
-        "h": "molten lava",
-        "n": "giant electromagnet",
-        "o": "infinite loop",
-        # GOOD
-        "b": "wreath",
-        "c": "loom",
-        "i": "ornament",
-        "j": "fixed point",
-        "p": "candy cane",
-        "r": "spool of cat6",
-        "s": "weather machine",
-        "t": "shell",
-    }
-    g = {
-        ("a", "b"): "north",
-        ("a", "c"): "east",
-        ("b", "d"): "north",
-        ("b", "e"): "east",
-        ("d", "f"): "east",
-        ("f", "g"): "south",
-        ("e", "h"): "east",
-        ("c", "i"): "south",
-        ("c", "j"): "east",
-        ("i", "k"): "east",
-        ("i", "l"): "west",
-        ("k", "m"): "south",
-        ("m", "n"): "south",
-        ("m", "o"): "east",
-        ("l", "p"): "north",
-        ("p", "q"): "north",
-        ("j", "r"): "north",
-        ("r", "s"): "north",
-        ("r", "t"): "west",
-        ("b", "a"): "south",
-        ("c", "a"): "west",
-        ("d", "b"): "south",
-        ("e", "b"): "west",
-        ("f", "d"): "west",
-        ("g", "f"): "north",
-        ("h", "e"): "west",
-        ("i", "c"): "north",
-        ("j", "c"): "west",
-        ("k", "i"): "west",
-        ("l", "i"): "east",
-        ("m", "k"): "north",
-        ("n", "m"): "north",
-        ("o", "m"): "west",
-        ("p", "l"): "south",
-        ("q", "p"): "south",
-        ("r", "j"): "south",
-        ("s", "r"): "south",
-        ("t", "r"): "east",
-    }
-    droid = Droid2(g, items)
+    for info in all_possible:
+        subset_index = info["subset_index"]
+        print(f"Attempting {subset_index}")
+        commands = info["commands"]
+        droid = Droid()
+        for command in commands:
+            droid.send_command(f"{command}\n")
 
-    # droid = Droid(commands)
-    # for command in commands:
-    #     droid.send_command(f"{command}\n")
+        intcode = Intcode(program, droid, droid)
+        try:
+            intcode.run()
+        except CatchIndexError:
+            print(f"Failed {subset_index}")
+            print("-" * 60)
+            droid.display_stdout()
+            print("-" * 60)
+            continue
 
-    intcode = Intcode(program, droid, droid)
-    intcode.run()
-
-    print("-" * 60)
-    droid.display_stdout()
-    print("-" * 60)
-    print("Done")
-
-    # try:
-    #     intcode.run()
-    # except:
-    #     print("Failed")
-
-    # print("-----------")
-    # print(bytes(droid.std_output).decode("ascii"), end="")
-
-    # north
-    # east
+        print("-" * 60)
+        droid.display_stdout()
+        print("-" * 60)
+        print("Done")
+        break
 
 
 if __name__ == "__main__":
     main()
-
-
-# import matplotlib.pyplot as plt
-# import networkx as nx
-# figure = plt.figure()
-# ax = figure.gca()
-# gg = nx.Graph()
-# gg.add_edges_from(list(g.keys()))
-# nx.draw(gg, ax=ax, with_labels=True)
-# plt.show()
